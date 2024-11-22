@@ -1,9 +1,17 @@
 <template>
   <EternaPage :title="$t('nav-bar:labs')">
     <Paginator :loading="fetchState.pending" :total="total" :defaultIncrement="increment" @load="$fetch">
-      <Gallery setCur>
-        <LabCard v-for="lab in labs" :key="lab.nid" :lab="lab" />
-      </Gallery>
+      <section class="phase-section" v-for="phase in Object.keys(segmentedLabs)" :key="phase">
+        <div class="phase-title" v-b-toggle="`collapse-${phase}`">
+          <h3>{{ getPhaseTitle(phase) }}</h3>
+          <BIconChevronRight></BIconChevronRight>
+        </div>
+        <b-collapse :id="`collapse-${phase}`" :visible="phase == '1'" class="mt-2">
+          <Gallery setCur>
+            <LabCard v-for="lab in segmentedLabs[phase]" :key="lab.nid" :lab="lab" />
+          </Gallery>
+        </b-collapse>
+      </section>
     </Paginator>
     <template #sidebar="{ isInSidebar }">
       <SearchPanel v-if="isInSidebar" :placeholder="$t('search:labs')" :isInSidebar="isInSidebar" />
@@ -32,6 +40,7 @@
   import FetchMixin from '@/mixins/FetchMixin';
   import PaginationPanel from '@/components/Sidebar/PaginationPanel.vue';
   import Paginator, { PaginatorEvent } from '@/components/PageLayout/Paginator.vue';
+  import { BIconChevronRight } from 'bootstrap-vue';
   import LabsExploreData, { LabCardData } from './types';
   import LabCard from './components/LabCard.vue';
 
@@ -45,6 +54,7 @@
       Preloader,
       PaginationPanel,
       Paginator,
+      BIconChevronRight
     },
   })
   export default class LabsExplore extends Mixins(FetchMixin) {
@@ -92,5 +102,64 @@
       }
       this.total = +res.num_labs;
     }
+
+    get segmentedLabs(): Record<string, LabCardData[] | []> {
+      const segmentedLabs: Record<string, LabCardData[] | []> = {
+        "1": [],
+        "2": [],
+        "3": [],
+        "4": [],
+        "5": [],
+        "6": [],
+      };
+        
+      this.labs.map((lab) => {
+        // If the lab is older than 2 years old, add to archived labs
+        if (new Date(lab.created).getTime() < (new Date().getTime() - (2 * 365 * 24 * 60 * 60 * 1000))) {
+          segmentedLabs["6"] = [...segmentedLabs["6"], lab];
+        } else if (lab.exp_phase) {
+          // If the lab is less than 2 years old, add to the appropriate phase
+          segmentedLabs[lab.exp_phase] = [...segmentedLabs[lab.exp_phase], lab];
+        } else {
+          // If the lab doesn't have an experimental phase, add to archived labs
+          segmentedLabs["6"] = [...segmentedLabs["6"], lab];
+        }
+        return 0;
+      });
+
+      return segmentedLabs;
+    }
+
+    getPhaseTitle(phase: string) {
+      return this.$t(`lab-card:status-${phase}`);
+    }
   }
 </script>
+
+<style lang="scss">
+  .phase-section {
+    margin-top: 1rem;
+
+  }
+  .phase-title {
+    background-color: #043468;
+    border-radius: 4px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    h3 {
+      font-size: 1.5rem;
+    }
+    .bi-chevron-right {
+      transition: transform 300ms ease-in-out;
+    }
+  }
+
+  .phase-title.not-collapsed {
+    .bi-chevron-right {
+      transform: rotate(90deg);
+    }
+  }
+</style>
